@@ -15,51 +15,74 @@ st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
 import pandas as pd
 import sqlite3
 import numpy as np
-import plotly.express as px
+
+# Try importing plotly, use alternative if not available
+try:
+    import plotly.express as px
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("Using basic charts as Plotly is not available.")
 
 class HousingApp:
     def __init__(self):
         self.db_path = "housing_data.db"
         self.initialize_database()
 
+    def create_basic_chart(self, data, chart_type, **kwargs):
+        """Create basic Streamlit charts when Plotly is not available"""
+        if chart_type == 'bar':
+            if 'x' in kwargs and 'y' in kwargs:
+                chart_data = data.set_index(kwargs['x'])[kwargs['y']]
+                st.bar_chart(chart_data)
+                st.caption(kwargs.get('title', ''))
+        elif chart_type == 'scatter':
+            if 'x' in kwargs and 'y' in kwargs:
+                st.scatter_chart(data=data, x=kwargs['x'], y=kwargs['y'])
+                st.caption(kwargs.get('title', ''))
+        elif chart_type == 'histogram':
+            if 'x' in kwargs:
+                # Create bins for histogram
+                values = data[kwargs['x']]
+                hist_data = np.histogram(values, bins=30)
+                hist_df = pd.DataFrame({
+                    'bin': hist_data[1][:-1],
+                    'count': hist_data[0]
+                })
+                st.bar_chart(hist_df.set_index('bin')['count'])
+                st.caption(kwargs.get('title', ''))
+        elif chart_type == 'heatmap':
+            st.dataframe(data.style.background_gradient(cmap='RdBu_r', axis=None))
+            st.caption(kwargs.get('title', ''))
+
     def plot_chart(self, data, chart_type, **kwargs):
-        """Unified plotting function for creating interactive plots"""
-        try:
-            if chart_type == 'bar':
-                fig = px.bar(data, **kwargs)
-            elif chart_type == 'scatter':
-                fig = px.scatter(data, **kwargs)
-            elif chart_type == 'histogram':
-                fig = px.histogram(data, **kwargs)
-            elif chart_type == 'heatmap':
-                fig = px.imshow(data, **kwargs)
-            
-            # Update layout for better appearance
-            fig.update_layout(
-                title_x=0.5,
-                width=800,
-                height=500,
-                margin=dict(l=20, r=20, t=40, b=20),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"Error creating plot: {str(e)}")
-            # Fallback to basic charts
-            if chart_type == 'bar':
-                if 'x' in kwargs and 'y' in kwargs:
-                    st.bar_chart(data=data.set_index(kwargs['x'])[kwargs['y']])
-            elif chart_type == 'scatter':
-                if 'x' in kwargs and 'y' in kwargs:
-                    st.scatter_chart(data=data, x=kwargs['x'], y=kwargs['y'])
-            elif chart_type == 'histogram':
-                if 'x' in kwargs:
-                    # For histogram, we'll use a bar chart of value counts
-                    value_counts = data[kwargs['x']].value_counts().sort_index()
-                    st.bar_chart(value_counts)
-            elif chart_type == 'heatmap':
-                st.dataframe(data.style.background_gradient(cmap='RdBu_r', axis=None))
+        """Unified plotting function that handles both Plotly and basic charts"""
+        if PLOTLY_AVAILABLE:
+            try:
+                if chart_type == 'bar':
+                    fig = px.bar(data, **kwargs)
+                elif chart_type == 'scatter':
+                    fig = px.scatter(data, **kwargs)
+                elif chart_type == 'histogram':
+                    fig = px.histogram(data, **kwargs)
+                elif chart_type == 'heatmap':
+                    fig = px.imshow(data, **kwargs)
+                
+                # Update layout for better appearance
+                fig.update_layout(
+                    title_x=0.5,
+                    width=800,
+                    height=500,
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error creating Plotly chart: {str(e)}")
+                self.create_basic_chart(data, chart_type, **kwargs)
+        else:
+            self.create_basic_chart(data, chart_type, **kwargs)
 
     def initialize_database(self):
         """Initialize the SQLite database"""
@@ -148,10 +171,9 @@ class HousingApp:
             df = self.get_data_from_db("SELECT price FROM housing")
 
             if not df.empty:
-                # For price distribution, we'll use plotly's histogram
                 self.plot_chart(df, 'histogram',
                               x='price',
-                              nbins=30,  # Specify number of bins
+                              nbins=30,
                               title='Price Distribution',
                               labels={'price': 'Price (₹)',
                                      'count': 'Number of Properties'})
