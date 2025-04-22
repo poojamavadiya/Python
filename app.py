@@ -29,6 +29,33 @@ class HousingApp:
         self.db_path = "housing_data.db"
         self.initialize_database()
 
+    def format_correlation_matrix(self, df):
+        """Format correlation matrix with custom styling"""
+        def color_scale(val):
+            if val >= 0.7:
+                color = 'background-color: #2ecc71'  # Strong positive - green
+            elif val >= 0.4:
+                color = 'background-color: #a0d8b3'  # Moderate positive - light green
+            elif val <= -0.7:
+                color = 'background-color: #e74c3c'  # Strong negative - red
+            elif val <= -0.4:
+                color = 'background-color: #f5b7b1'  # Moderate negative - light red
+            else:
+                color = 'background-color: #f8f9fa'  # Weak correlation - light gray
+            
+            # Add text color for better visibility
+            if abs(val) > 0.4:
+                color += '; color: white'
+            
+            return color
+
+        # Format the values to 2 decimal places
+        formatted_df = df.round(2)
+        
+        # Apply the color styling
+        styled_df = formatted_df.style.apply(lambda x: [color_scale(v) for v in x])
+        return styled_df
+
     def create_basic_chart(self, data, chart_type, **kwargs):
         """Create basic Streamlit charts when Plotly is not available"""
         if chart_type == 'bar':
@@ -42,7 +69,6 @@ class HousingApp:
                 st.caption(kwargs.get('title', ''))
         elif chart_type == 'histogram':
             if 'x' in kwargs:
-                # Create bins for histogram
                 values = data[kwargs['x']]
                 hist_data = np.histogram(values, bins=30)
                 hist_df = pd.DataFrame({
@@ -52,7 +78,9 @@ class HousingApp:
                 st.bar_chart(hist_df.set_index('bin')['count'])
                 st.caption(kwargs.get('title', ''))
         elif chart_type == 'heatmap':
-            st.dataframe(data.style.background_gradient(cmap='RdBu_r', axis=None))
+            # Use custom formatting for correlation matrix
+            styled_df = self.format_correlation_matrix(data)
+            st.dataframe(styled_df)
             st.caption(kwargs.get('title', ''))
 
     def plot_chart(self, data, chart_type, **kwargs):
@@ -195,17 +223,21 @@ class HousingApp:
 
             corr = df.corr()
             
-            self.plot_chart(corr, 'heatmap',
-                          title='Feature Correlation Heatmap',
-                          labels=dict(color="Correlation"),
-                          x=corr.columns,
-                          y=corr.columns,
-                          color_continuous_scale='RdBu_r',
-                          aspect='auto')
+            # Display correlation matrix with custom formatting
+            st.write("### Correlation Matrix")
+            styled_corr = self.format_correlation_matrix(corr)
+            st.dataframe(styled_corr, use_container_width=True)
 
-            # Also display correlation matrix as a table
-            st.write("Correlation Matrix:")
-            st.dataframe(corr.style.background_gradient(cmap='RdBu_r', axis=None))
+            # Display heatmap if Plotly is available
+            if PLOTLY_AVAILABLE:
+                st.write("### Correlation Heatmap")
+                self.plot_chart(corr, 'heatmap',
+                              title='Feature Correlation Heatmap',
+                              labels=dict(color="Correlation"),
+                              x=corr.columns,
+                              y=corr.columns,
+                              color_continuous_scale='RdBu_r',
+                              aspect='auto')
 
     def main(self):
         """Main application interface"""
