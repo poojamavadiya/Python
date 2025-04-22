@@ -10,7 +10,6 @@ Original file is located at
 """
 
 import streamlit as st
-# Must be the first Streamlit command
 st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
 
 import pandas as pd
@@ -28,6 +27,8 @@ except ImportError:
 
 class HousingApp:
     def __init__(self):
+        if not PLOTTING_AVAILABLE:
+            st.warning("Warning: Plotting libraries not available. Some visualizations may be limited.")
         self.db_path = "housing_data.db"
         self.initialize_database()
 
