@@ -15,15 +15,7 @@ st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
 import pandas as pd
 import sqlite3
 import numpy as np
-
-# Try to import plotly, fall back to basic charts if not available
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-    PLOTLY_AVAILABLE = True
-except ImportError:
-    PLOTLY_AVAILABLE = False
-    st.warning("Using basic charts as Plotly is not available. For better visualizations, please install plotly.")
+import plotly.express as px
 
 class HousingApp:
     def __init__(self):
@@ -31,8 +23,8 @@ class HousingApp:
         self.initialize_database()
 
     def plot_chart(self, data, chart_type, **kwargs):
-        """Unified plotting function that handles both plotly and basic charts"""
-        if PLOTLY_AVAILABLE:
+        """Unified plotting function for creating interactive plots"""
+        try:
             if chart_type == 'bar':
                 fig = px.bar(data, **kwargs)
             elif chart_type == 'scatter':
@@ -41,18 +33,31 @@ class HousingApp:
                 fig = px.histogram(data, **kwargs)
             elif chart_type == 'heatmap':
                 fig = px.imshow(data, **kwargs)
-            st.plotly_chart(fig)
-        else:
-            # Fallback to basic Streamlit charts
+            
+            # Update layout for better appearance
+            fig.update_layout(
+                title_x=0.5,
+                width=800,
+                height=500,
+                margin=dict(l=20, r=20, t=40, b=20),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error creating plot: {str(e)}")
+            # Fallback to basic charts
             if chart_type == 'bar':
                 if 'x' in kwargs and 'y' in kwargs:
-                    st.bar_chart(data.set_index(kwargs['x'])[kwargs['y']])
+                    st.bar_chart(data=data.set_index(kwargs['x'])[kwargs['y']])
             elif chart_type == 'scatter':
                 if 'x' in kwargs and 'y' in kwargs:
                     st.scatter_chart(data=data, x=kwargs['x'], y=kwargs['y'])
             elif chart_type == 'histogram':
                 if 'x' in kwargs:
-                    st.histogram_chart(data[kwargs['x']])
+                    # For histogram, we'll use a bar chart of value counts
+                    value_counts = data[kwargs['x']].value_counts().sort_index()
+                    st.bar_chart(value_counts)
             elif chart_type == 'heatmap':
                 st.dataframe(data.style.background_gradient(cmap='RdBu_r', axis=None))
 
@@ -143,8 +148,10 @@ class HousingApp:
             df = self.get_data_from_db("SELECT price FROM housing")
 
             if not df.empty:
+                # For price distribution, we'll use plotly's histogram
                 self.plot_chart(df, 'histogram',
                               x='price',
+                              nbins=30,  # Specify number of bins
                               title='Price Distribution',
                               labels={'price': 'Price (₹)',
                                      'count': 'Number of Properties'})
@@ -167,11 +174,16 @@ class HousingApp:
             corr = df.corr()
             
             self.plot_chart(corr, 'heatmap',
+                          title='Feature Correlation Heatmap',
                           labels=dict(color="Correlation"),
                           x=corr.columns,
                           y=corr.columns,
                           color_continuous_scale='RdBu_r',
                           aspect='auto')
+
+            # Also display correlation matrix as a table
+            st.write("Correlation Matrix:")
+            st.dataframe(corr.style.background_gradient(cmap='RdBu_r', axis=None))
 
     def main(self):
         """Main application interface"""
