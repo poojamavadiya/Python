@@ -9,9 +9,12 @@ Original file is located at
 24MDS014_Housing_Price_Analysis
 """
 
+import streamlit as st
+# Must be the first Streamlit command
+st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
+
 import pandas as pd
 import sqlite3
-import streamlit as st
 import io
 import base64
 
@@ -138,7 +141,6 @@ class HousingApp:
 
     def main(self):
         """Main application interface"""
-        st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
         st.title("🏠 Housing Data Analyzer")
 
         menu = ["Upload Data", "Price Analysis", "Correlation Analysis"]
