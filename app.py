@@ -14,13 +14,47 @@ st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
 
 import pandas as pd
 import sqlite3
-import plotly.express as px
-import plotly.graph_objects as go
+import numpy as np
+
+# Try to import plotly, fall back to basic charts if not available
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("Using basic charts as Plotly is not available. For better visualizations, please install plotly.")
 
 class HousingApp:
     def __init__(self):
         self.db_path = "housing_data.db"
         self.initialize_database()
+
+    def plot_chart(self, data, chart_type, **kwargs):
+        """Unified plotting function that handles both plotly and basic charts"""
+        if PLOTLY_AVAILABLE:
+            if chart_type == 'bar':
+                fig = px.bar(data, **kwargs)
+            elif chart_type == 'scatter':
+                fig = px.scatter(data, **kwargs)
+            elif chart_type == 'histogram':
+                fig = px.histogram(data, **kwargs)
+            elif chart_type == 'heatmap':
+                fig = px.imshow(data, **kwargs)
+            st.plotly_chart(fig)
+        else:
+            # Fallback to basic Streamlit charts
+            if chart_type == 'bar':
+                if 'x' in kwargs and 'y' in kwargs:
+                    st.bar_chart(data.set_index(kwargs['x'])[kwargs['y']])
+            elif chart_type == 'scatter':
+                if 'x' in kwargs and 'y' in kwargs:
+                    st.scatter_chart(data=data, x=kwargs['x'], y=kwargs['y'])
+            elif chart_type == 'histogram':
+                if 'x' in kwargs:
+                    st.histogram_chart(data[kwargs['x']])
+            elif chart_type == 'heatmap':
+                st.dataframe(data.style.background_gradient(cmap='RdBu_r', axis=None))
 
     def initialize_database(self):
         """Initialize the SQLite database"""
@@ -77,11 +111,11 @@ class HousingApp:
                 FROM housing GROUP BY furnishingstatus""")
 
             if not df.empty:
-                fig = px.bar(df, x='furnishingstatus', y='avg_price',
-                           title='Average Price by Furnishing Status',
-                           labels={'furnishingstatus': 'Furnishing Status',
-                                  'avg_price': 'Average Price (₹)'})
-                st.plotly_chart(fig)
+                self.plot_chart(df, 'bar',
+                              x='furnishingstatus', y='avg_price',
+                              title='Average Price by Furnishing Status',
+                              labels={'furnishingstatus': 'Furnishing Status',
+                                     'avg_price': 'Average Price (₹)'})
 
         elif analysis_type == 'Price Distribution by Bedrooms':
             df = self.get_data_from_db("""
@@ -89,31 +123,31 @@ class HousingApp:
                 FROM housing GROUP BY bedrooms""")
 
             if not df.empty:
-                fig = px.bar(df, x='bedrooms', y='avg_price',
-                           title='Average Price by Number of Bedrooms',
-                           labels={'bedrooms': 'Number of Bedrooms',
-                                  'avg_price': 'Average Price (₹)'})
-                st.plotly_chart(fig)
+                self.plot_chart(df, 'bar',
+                              x='bedrooms', y='avg_price',
+                              title='Average Price by Number of Bedrooms',
+                              labels={'bedrooms': 'Number of Bedrooms',
+                                     'avg_price': 'Average Price (₹)'})
 
         elif analysis_type == 'Price vs Area Scatter Plot':
             df = self.get_data_from_db("SELECT price, area FROM housing")
 
             if not df.empty:
-                fig = px.scatter(df, x='area', y='price',
-                               title='Price vs Area',
-                               labels={'area': 'Area (sq ft)',
-                                      'price': 'Price (₹)'})
-                st.plotly_chart(fig)
+                self.plot_chart(df, 'scatter',
+                              x='area', y='price',
+                              title='Price vs Area',
+                              labels={'area': 'Area (sq ft)',
+                                     'price': 'Price (₹)'})
 
         elif analysis_type == 'Price Range Distribution':
             df = self.get_data_from_db("SELECT price FROM housing")
 
             if not df.empty:
-                fig = px.histogram(df, x='price',
-                                 title='Price Distribution',
-                                 labels={'price': 'Price (₹)',
-                                        'count': 'Number of Properties'})
-                st.plotly_chart(fig)
+                self.plot_chart(df, 'histogram',
+                              x='price',
+                              title='Price Distribution',
+                              labels={'price': 'Price (₹)',
+                                     'count': 'Number of Properties'})
 
     def correlation_analysis(self):
         """Show correlation analysis"""
@@ -132,20 +166,12 @@ class HousingApp:
 
             corr = df.corr()
             
-            # Create correlation heatmap using plotly
-            fig = px.imshow(corr,
+            self.plot_chart(corr, 'heatmap',
                           labels=dict(color="Correlation"),
                           x=corr.columns,
                           y=corr.columns,
                           color_continuous_scale='RdBu_r',
                           aspect='auto')
-            
-            fig.update_layout(title='Feature Correlation Heatmap')
-            st.plotly_chart(fig)
-
-            # Also show the correlation matrix as a table
-            st.write("Feature Correlation Matrix")
-            st.dataframe(corr.style.background_gradient(cmap='RdBu_r', axis=None))
 
     def main(self):
         """Main application interface"""
