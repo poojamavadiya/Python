@@ -14,21 +14,11 @@ st.set_page_config(page_title="Housing Data Analyzer", layout="wide")
 
 import pandas as pd
 import sqlite3
-import io
-import base64
-
-try:
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    PLOTTING_AVAILABLE = True
-except ImportError:
-    PLOTTING_AVAILABLE = False
-    st.warning("Warning: Plotting libraries not available. Some visualizations may be limited.")
+import plotly.express as px
+import plotly.graph_objects as go
 
 class HousingApp:
     def __init__(self):
-        if not PLOTTING_AVAILABLE:
-            st.warning("Warning: Plotting libraries not available. Some visualizations may be limited.")
         self.db_path = "housing_data.db"
         self.initialize_database()
 
@@ -81,18 +71,17 @@ class HousingApp:
             'Price Range Distribution'
         ])
 
-        if not PLOTTING_AVAILABLE:
-            st.error("Plotting libraries are not available. Please check your installation.")
-            return
-
         if analysis_type == 'Average Price by Furnishing Status':
             df = self.get_data_from_db("""
                 SELECT furnishingstatus, AVG(price) as avg_price
                 FROM housing GROUP BY furnishingstatus""")
 
             if not df.empty:
-                st.bar_chart(data=df.set_index('furnishingstatus')['avg_price'])
-                st.write("Average Price by Furnishing Status")
+                fig = px.bar(df, x='furnishingstatus', y='avg_price',
+                           title='Average Price by Furnishing Status',
+                           labels={'furnishingstatus': 'Furnishing Status',
+                                  'avg_price': 'Average Price (₹)'})
+                st.plotly_chart(fig)
 
         elif analysis_type == 'Price Distribution by Bedrooms':
             df = self.get_data_from_db("""
@@ -100,30 +89,35 @@ class HousingApp:
                 FROM housing GROUP BY bedrooms""")
 
             if not df.empty:
-                st.bar_chart(data=df.set_index('bedrooms')['avg_price'])
-                st.write("Average Price by Number of Bedrooms")
+                fig = px.bar(df, x='bedrooms', y='avg_price',
+                           title='Average Price by Number of Bedrooms',
+                           labels={'bedrooms': 'Number of Bedrooms',
+                                  'avg_price': 'Average Price (₹)'})
+                st.plotly_chart(fig)
 
         elif analysis_type == 'Price vs Area Scatter Plot':
             df = self.get_data_from_db("SELECT price, area FROM housing")
 
             if not df.empty:
-                st.scatter_chart(data=df, x='area', y='price')
-                st.write("Price vs Area")
+                fig = px.scatter(df, x='area', y='price',
+                               title='Price vs Area',
+                               labels={'area': 'Area (sq ft)',
+                                      'price': 'Price (₹)'})
+                st.plotly_chart(fig)
 
         elif analysis_type == 'Price Range Distribution':
             df = self.get_data_from_db("SELECT price FROM housing")
 
             if not df.empty:
-                st.histogram_chart(df['price'])
-                st.write("Price Distribution")
+                fig = px.histogram(df, x='price',
+                                 title='Price Distribution',
+                                 labels={'price': 'Price (₹)',
+                                        'count': 'Number of Properties'})
+                st.plotly_chart(fig)
 
     def correlation_analysis(self):
         """Show correlation analysis"""
         st.markdown("## Correlation Analysis")
-
-        if not PLOTTING_AVAILABLE:
-            st.error("Plotting libraries are not available. Please check your installation.")
-            return
 
         df = self.get_data_from_db("SELECT * FROM housing")
 
@@ -137,8 +131,21 @@ class HousingApp:
                     df[col] = pd.factorize(df[col])[0]
 
             corr = df.corr()
+            
+            # Create correlation heatmap using plotly
+            fig = px.imshow(corr,
+                          labels=dict(color="Correlation"),
+                          x=corr.columns,
+                          y=corr.columns,
+                          color_continuous_scale='RdBu_r',
+                          aspect='auto')
+            
+            fig.update_layout(title='Feature Correlation Heatmap')
+            st.plotly_chart(fig)
+
+            # Also show the correlation matrix as a table
             st.write("Feature Correlation Matrix")
-            st.dataframe(corr.style.background_gradient(cmap='coolwarm', axis=None))
+            st.dataframe(corr.style.background_gradient(cmap='RdBu_r', axis=None))
 
     def main(self):
         """Main application interface"""
